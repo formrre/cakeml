@@ -291,8 +291,8 @@ val evaluate_def = tDefine "evaluate" `
                    | SOME env =>
                      if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
 		     else
-                      (case fix_clock (call_env args ((dec_clock s) with stack := (ARB :: s.stack)))
-                                      (evaluate (prog, call_env args ((dec_clock s) with stack := (ARB :: s.stack)))) of
+                      (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))
+                                      (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))) of
 			| (SOME (Return retv),st) =>
                            (case pop_stk st of
 			     | NONE => (SOME Error,st)
