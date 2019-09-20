@@ -18,6 +18,7 @@ val _ = Datatype `
   exp = Const ('a word)
       | Var num
       | Load exp
+      | LoadByte exp
       | Op binop (exp list)
       | Shift shift exp num`
 

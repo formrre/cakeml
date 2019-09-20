@@ -112,6 +112,13 @@ val word_exp_def = tDefine "word_exp" `
      case word_exp s addr of
      | SOME (Word w) => mem_load w s
      | _ => NONE) /\
+  (word_exp s (LoadByte addr) =
+     case word_exp s addr of
+     | SOME (Word w) =>
+        (case mem_load_byte_aux s.memory s.memaddrs s.be w of
+	   | NONE => NONE
+	   | SOME w => SOME (w2w w))
+     | _ => NONE) /\
   (word_exp s (Op op wexps) =
      case the_words (MAP (word_exp s) wexps) of
      | SOME ws => (OPTION_MAP Word (word_op op ws))
