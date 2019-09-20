@@ -105,7 +105,8 @@ val the_words_def = Define `
      | SOME (Word x), SOME xs => SOME (x::xs)
      | _ => NONE)`
 
-val word_exp_def = tDefine "word_exp" `
+
+val word_exp_def = tDefine "word_exp"`
   (word_exp ^s (Const w) = SOME (Word w)) /\
   (word_exp s (Var v) = lookup v s.locals) /\
   (word_exp s (Load addr) =
@@ -116,8 +117,8 @@ val word_exp_def = tDefine "word_exp" `
      case word_exp s addr of
      | SOME (Word w) =>
         (case mem_load_byte_aux s.memory s.memaddrs s.be w of
-	   | NONE => NONE
-	   | SOME w => SOME (w2w w))
+           | NONE => NONE
+           | SOME w => SOME (Word (w2w w)))
      | _ => NONE) /\
   (word_exp s (Op op wexps) =
      case the_words (MAP (word_exp s) wexps) of
@@ -244,8 +245,8 @@ val evaluate_def = tDefine "evaluate" `
   (evaluate (Seq c1 c2,s) =
      let (res,s1) = fix_clock s (evaluate (c1,s)) in
        if res = NONE then evaluate (c2,s1) else (res,s1)) /\
-  (evaluate (Return n,s) =
-     case get_var n s of
+  (evaluate (Return n,s) =  (* Return encodes the value in the result and clear the local varaibles   *)
+     case get_var n s of    (* it does not remove the stack frame, Call removes the stack frame if the result is Return*)
      | SOME v => (SOME (Return v),call_env [] s)
      | _ => (SOME Error,s)) /\
   (evaluate (Raise n,s) =
@@ -281,7 +282,7 @@ val evaluate_def = tDefine "evaluate" `
                                    ffi := new_ffi |>))
           | _ => (SOME Error,s)))
     | res => (SOME Error,s)) /\
-  (evaluate (Call (ret: (num # num_set) option) (dest: (num option)) (argvars : (num list)) handler,s) =
+  (evaluate (Call (ret: num option) (dest: (num option)) (argvars : (num list)) handler,s) =
     case get_vars argvars s of
     | NONE => (SOME Error,s)
     | SOME argvals =>
@@ -295,28 +296,23 @@ val evaluate_def = tDefine "evaluate" `
             if handler = NONE then
              if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
              else (case evaluate (prog, call_env args (dec_clock s)) of
-                    | (NONE,s) => (SOME Error,s)
+                    | (NONE,s) => (SOME Error,s)  (* the called function must return a value or it should end in an exception, it should not end in a result without execution *)
                     | (SOME res,s) => (SOME res,s))
            else (SOME Error,s) (* tail-call requires no handler *)
-          | SOME (n,names) (* returning call, returns into var n *) =>
-            if domain names = {} then (SOME Error,s)
-            else (case cut_env names s.locals of
-                   | NONE => (SOME Error,s)
-                   | SOME env =>
-                     if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
-                     else
-                      (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))
-                                      (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))) of
-                        | (SOME (Return retv),st) =>
-                           (case pop_stk st of
+          | SOME n (* returning call, returns into var n *) =>
+              if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
+              else (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))
+                                   (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))) of
+                      | (NONE,st) => (SOME Error,st)
+                      | (SOME (Return retv),st) =>
+                          (case pop_stk st of
                              | NONE => (SOME Error,st)
                              | SOME st' => (NONE, set_var n retv st'))
-                        | (SOME (Exception exn),st) =>
-                            (case handler of (* if handler is present, then handle exc *)
+                      | (SOME (Exception exn),st) =>
+                          (case handler of (* if handler is present, then handle exc *)
                             | NONE => (SOME (Exception exn),st)
                             | SOME (n,h) => evaluate (h, set_var n exn st))
-                        | (NONE,s) => (SOME Error,s)
-                        | res => res)))`
+                      | res => res))`
   (WF_REL_TAC `(inv_image (measure I LEX measure (prog_size (K 0)))
                   (\(xs,^s). (s.clock,xs)))`
    \\ REPEAT STRIP_TAC \\ TRY (full_simp_tac(srw_ss())[] \\ DECIDE_TAC)

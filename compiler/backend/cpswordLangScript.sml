@@ -35,8 +35,8 @@ val _ = Datatype `
        | Assign num ('a exp)
        | Store ('a exp) num
        | StoreByte ('a exp) num
-       | Call ((num # num_set) option)
-              (* return var, cut-set *)
+       | Call (num option)
+              (* return var *)
               (num option) (* target of call *)
               (num list) (* arguments *)
               ((num # cpswordLang$prog) option)
