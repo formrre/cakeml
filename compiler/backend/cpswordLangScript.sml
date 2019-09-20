@@ -33,6 +33,7 @@ val _ = Datatype `
   prog = Skip
        | Assign num ('a exp)
        | Store ('a exp) num
+       | StoreByte ('a exp) num
        | Call ((num # num_set) option)
               (* return var, cut-set *)
               (num option) (* target of call *)

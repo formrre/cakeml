@@ -219,11 +219,18 @@ val evaluate_def = tDefine "evaluate" `
      | SOME w => (NONE, set_var v w s)) /\
   (evaluate (Store exp v,s) =
      case (word_exp s exp, get_var v s) of
-     | (SOME (Word a), SOME w) =>
-         (case mem_store a w s of
-          | SOME s1 => (NONE, s1)
+     | (SOME (Word adr), SOME w) =>
+         (case mem_store adr w s of
+          | SOME st => (NONE, st)
           | NONE => (SOME Error, s))
      | _ => (SOME Error, s)) /\
+  (evaluate (StoreByte exp v,s) = (* v should contain only a Word, not a Label *)
+     case (word_exp s exp, get_var v s) of
+       | (SOME (Word adr), SOME (Word w)) =>
+           (case mem_store_byte_aux s.memory s.memaddrs s.be adr (w2w w) of
+              | SOME m => (NONE, st with memory := m)
+              | NONE => (SOME Error, s))
+       | _ => (SOME Error, s)) /\
   (evaluate (Tick,s) =
      if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
                     else (NONE,dec_clock s)) /\
@@ -281,7 +288,7 @@ val evaluate_def = tDefine "evaluate" `
             if handler = NONE then
              if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
              else (case evaluate (prog, call_env args (dec_clock s)) of
-		    | (NONE,s) => (SOME Error,s)
+                    | (NONE,s) => (SOME Error,s)
                     | (SOME res,s) => (SOME res,s))
            else (SOME Error,s) (* tail-call requires no handler *)
           | SOME (n,names) (* returning call, returns into var n *) =>
@@ -290,14 +297,14 @@ val evaluate_def = tDefine "evaluate" `
                    | NONE => (SOME Error,s)
                    | SOME env =>
                      if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
-		     else
+                     else
                       (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))
                                       (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))) of
-			| (SOME (Return retv),st) =>
+                        | (SOME (Return retv),st) =>
                            (case pop_stk st of
-			     | NONE => (SOME Error,st)
+                             | NONE => (SOME Error,st)
                              | SOME st' => (NONE, set_var n retv st'))
-		        | (SOME (Exception exn),st) =>
+                        | (SOME (Exception exn),st) =>
                             (case handler of (* if handler is present, then handle exc *)
                             | NONE => (SOME (Exception exn),st)
                             | SOME (n,h) => evaluate (h, set_var n exn st))
