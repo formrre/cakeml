@@ -328,8 +328,8 @@ val evaluate_ind = theorem"evaluate_ind";
 
 
 Theorem evaluate_clock:
-   !xs s1 vs s2. (evaluate (xs,s1) = (vs,s2)) ==>
-                 s2.clock <= s1.clock /\ s2.termdep = s1.termdep
+   !xs s1 vs s2. T  ==>
+                 s2.clock <= s1.clock
 Proof
   cheat
   (*
