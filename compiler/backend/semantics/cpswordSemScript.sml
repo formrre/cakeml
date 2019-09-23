@@ -58,7 +58,7 @@ val _ = Datatype `
      ; stack     : (stack_frame) list
      ; memory    : 'a word -> 'a word_loc
      ; memaddrs  : ('a word) set
-     ; handler   : num (* position of current handler frame on stack *)
+     ; handler   : num (* position of current handler frame on stack *)  (* why not have it num option  *)
      ; clock     : num
      ; be        : bool
      ; code      : (num # ('a cpswordLang$prog)) num_map
@@ -314,11 +314,11 @@ val evaluate_def = tDefine "evaluate" `
              else (case evaluate (prog, call_env args (dec_clock s)) of
                     | (NONE,s) => (SOME Error,s)  (* the called function must return a value or it should end in an exception, it should not end in a result without execution *)
                     | (SOME res,s) => (SOME res,s))
-           else (SOME Error,s) (* tail-call requires no handler *)
+           else (SOME Error,s) (* tail-call requires no handler *) (* why? because there is no winding on the stack for tail-call?  *)
           | SOME n (* returning call, returns into var n *) =>
               if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
-              else (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB :: s.stack)))
-                                   (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB :: s.stack)))) of
+              else (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame (SOME s.handler) :: s.stack)))
+                                   (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame (SOME s.handler) :: s.stack)))) of
                       | (NONE,st) => (SOME Error,st)
                       | (SOME (Return retv),st) =>
                           (case pop_stk st of
