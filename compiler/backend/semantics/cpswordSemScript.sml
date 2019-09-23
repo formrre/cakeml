@@ -42,8 +42,14 @@ val write_bytearray_def = Define `
      | NONE => m)`;
 
 
+(*
 val _ = Datatype `
-  stack_frame = StackFrame num (num option)` (* name of the function, stored exception handler *)
+  stack_frame = StackFrame num (num option)` (* name of the function, optional exception handler *)
+*)
+
+(* making stack fram even simpler *)
+val _ = Datatype `
+  stack_frame = StackFrame (num option)` (* optional exception handler *)
 
 
 val _ = Datatype `
@@ -153,12 +159,22 @@ val set_vars_def = Define `
   set_vars vs xs ^s =
     (s with locals := (alist_insert vs xs s.locals))`;
 
-
+(*
 val jump_exc_def = Define `
   jump_exc ^s =
     if s.handler < LENGTH s.stack then
       case LASTN (s.handler+1) s.stack of
       | StackFrame n (SOME hndl) :: stk =>
+          SOME (s with <| handler := hndl ; stack := stk |>)
+      | _ => NONE
+    else NONE`;
+*)
+
+val jump_exc_def = Define `
+  jump_exc ^s =
+    if s.handler < LENGTH s.stack then
+      case LASTN (s.handler+1) s.stack of
+      | StackFrame (SOME hndl) :: stk =>
           SOME (s with <| handler := hndl ; stack := stk |>)
       | _ => NONE
     else NONE`;
@@ -213,9 +229,9 @@ val cut_env_def = Define `
 val pop_stk_def = Define `
   pop_stk ^s =
     case s.stack of
-    | (StackFrame n NONE::xs) =>
+    | (StackFrame NONE::xs) =>
          SOME (s with <| locals := fromList []; stack := xs |>)
-    | (StackFrame n (SOME hndl)::xs) =>
+    | (StackFrame (SOME hndl)::xs) =>
          SOME (s with <| locals := fromList [] ; stack := xs ; handler := hndl |>) `;
 
 
@@ -301,8 +317,8 @@ val evaluate_def = tDefine "evaluate" `
            else (SOME Error,s) (* tail-call requires no handler *)
           | SOME n (* returning call, returns into var n *) =>
               if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
-              else (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))
-                                   (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB ARB :: s.stack)))) of
+              else (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame ARB :: s.stack)))
+                                   (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame ARB :: s.stack)))) of
                       | (NONE,st) => (SOME Error,st)
                       | (SOME (Return retv),st) =>
                           (case pop_stk st of
