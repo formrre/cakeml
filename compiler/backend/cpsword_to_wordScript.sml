@@ -27,11 +27,10 @@ val compile_exp = tDefine "compile_exp"`
    >> DECIDE_TAC)
 
 
-
 val compile_prog = Define`
-  compile_prog (prog: 'a cpswordLang$prog) =
+  compile_prog (prog: 'a cpswordLang$prog)  =
    case prog of
-     | Skip => (Skip: 'a wordLang$prog)
+     | Skip => (Skip:'a wordLang$prog)
      | Assign n e => Assign n (compile_exp e)
      | Store e n => Store (compile_exp e) n
      | StoreByte e n => ARB
