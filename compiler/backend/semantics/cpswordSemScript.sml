@@ -225,6 +225,9 @@ val cut_env_def = Define `
     then SOME (inter env name_set)
     else NONE`
 
+val push_hndle_def = Define `
+  (push_hndle NONE ^s = s with <| stack := StackFrame NONE :: s.stack |>) /\
+  (push_hndle (SOME (w:num, h: 'a cpswordLang$prog)) s = s with <| stack := StackFrame (SOME s.handler) :: s.stack |> )`
 
 val pop_stk_def = Define `
   pop_stk ^s =
@@ -317,8 +320,8 @@ val evaluate_def = tDefine "evaluate" `
            else (SOME Error,s) (* tail-call requires no handler *) (* why? because there is no winding on the stack for tail-call?  *)
           | SOME n (* returning call, returns into var n *) =>
               if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
-              else (case fix_clock (call_env args ((dec_clock s) with stack := (StackFrame (SOME s.handler) :: s.stack)))
-                                   (evaluate (prog, call_env args ((dec_clock s) with stack := (StackFrame (SOME s.handler) :: s.stack)))) of
+              else (case fix_clock (call_env args (push_hndle handler (dec_clock s)))
+                                   (evaluate (prog, call_env args (push_hndle handler (dec_clock s)))) of
                       | (NONE,st) => (SOME Error,st)
                       | (SOME (Return retv),st) =>
                           (case pop_stk st of
@@ -335,7 +338,7 @@ val evaluate_def = tDefine "evaluate" `
    \\ imp_res_tac fix_clock_IMP_LESS_EQ \\ full_simp_tac(srw_ss())[]
    \\ imp_res_tac (GSYM fix_clock_IMP_LESS_EQ)
    \\ TRY (Cases_on `handler`) \\ TRY (PairCases_on `x`)
-   \\ full_simp_tac(srw_ss())[set_var_def,call_env_def,dec_clock_def,LET_THM]
+   \\ full_simp_tac(srw_ss())[set_var_def,call_env_def,dec_clock_def,push_hndle_def, LET_THM]
    \\ rpt (pairarg_tac \\ full_simp_tac(srw_ss())[])
    \\ every_case_tac \\ full_simp_tac(srw_ss())[]
    \\ decide_tac)
