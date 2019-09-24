@@ -1,19 +1,20 @@
 (*
   The formal semantics of cpswordLang
 *)
-open preamble cpswordLangTheory;
-local open alignmentTheory asmTheory ffiTheory in end;
+open preamble wordcommonTheory cpswordLangTheory;
+local open alignmentTheory ffiTheory in end;
 
 val _ = new_theory"cpswordSem";
 val _ = set_grammar_ancestry [
-  "cpswordLang", "alignment", "finite_map", "misc", "asm",
-  "ffi",
-  "lprefix_lub" (* for build_lprefix_lub *)
+  "cpswordLang", "alignment",
+  "finite_map", "misc",
+  "ffi", "wordcommon"
 ]
 
+(*
 val _ = Datatype `
   word_loc = Word ('a word) | Loc num num `;
-
+*)
 
 val mem_load_byte_aux_def = Define `
   mem_load_byte_aux m dm be w =
@@ -39,19 +40,12 @@ val write_bytearray_def = Define `
      | SOME m => m
      | NONE => m)`;
 
-(*
-val _ = Datatype `
-  stack_frame = StackFrame (num option)` (* optional exception handler *)
-*)
-
 
 val _ = Datatype `
   state =
     <| locals    : ('a word_loc) num_map
-  (* ; stack     : (stack_frame) list *)
      ; memory    : 'a word -> 'a word_loc
      ; memaddrs  : ('a word) set
-  (* ; handler   : num *)
      ; clock     : num
      ; be        : bool
      ; code      : (num # ('a cpswordLang$prog)) num_map
@@ -152,16 +146,6 @@ val set_vars_def = Define `
   set_vars vs xs ^s =
     (s with locals := (alist_insert vs xs s.locals))`;
 
-(*
-val jump_exc_def = Define `
-  jump_exc ^s =
-    if s.handler < LENGTH s.stack then
-      case LASTN (s.handler+1) s.stack of
-      | StackFrame (SOME hndl) :: stk =>
-          SOME (s with <| handler := hndl ; stack := stk |>)
-      | _ => NONE
-    else NONE`;
-*)
 
 val find_code_def = Define `
   (find_code (SOME p) args code =
@@ -208,21 +192,6 @@ val cut_env_def = Define `
     then SOME (inter env name_set)
     else NONE`
 
-(*
-val push_hndle_def = Define `
-  (push_hndle NONE ^s = s with <| stack := StackFrame NONE :: s.stack |>) /\
-  (push_hndle (SOME (w:num, h: 'a cpswordLang$prog)) s = s with <| stack := StackFrame (SOME s.handler) :: s.stack |> )`
-*)
-
-(*
-val pop_stk_def = Define `
-  pop_stk ^s =
-    case s.stack of
-    | (StackFrame NONE::xs) =>
-         SOME (s with <| locals := fromList []; stack := xs |>)
-    | (StackFrame (SOME hndl)::xs) =>
-         SOME (s with <| locals := fromList [] ; stack := xs ; handler := hndl |>) `;
-*)
 
 val evaluate_def = tDefine "evaluate" `
   (evaluate (Skip:'a cpswordLang$prog,^s) = (NONE,s)) /\
@@ -346,14 +315,11 @@ val fix_clock_evaluate = Q.prove(
   Cases_on `evaluate (prog,s)` \\ fs [fix_clock_def]
   \\ imp_res_tac evaluate_clock \\ fs [GSYM NOT_LESS, state_component_equality]);
 
-(* We store the theorems without fix_clock *)
-
 val evaluate_ind = save_thm("evaluate_ind",
   REWRITE_RULE [fix_clock_evaluate] evaluate_ind);
 
 val evaluate_def = save_thm("evaluate_def[compute]",
   REWRITE_RULE [fix_clock_evaluate] evaluate_def);
-
 
 val _ = map delete_binding ["evaluate_AUX_def", "evaluate_primitive_def"];
 

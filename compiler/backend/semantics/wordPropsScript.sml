@@ -18,6 +18,10 @@ Main lemmas:
 
 val _ = new_theory "wordProps";
 
+val _ = set_grammar_ancestry [
+  "reg_alloc",  "asm",  "wordLang", "wordSem"
+]
+
 (* TODO: move *)
 
 Theorem mem_list_rearrange:

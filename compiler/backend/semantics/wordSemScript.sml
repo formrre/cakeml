@@ -2,15 +2,18 @@
   The formal semantics of wordLang
 *)
 open preamble wordLangTheory;
-local open alignmentTheory asmTheory ffiTheory in end;
+local open alignmentTheory asmTheory ffiTheory wordcommonTheory in end;
+
 
 val _ = new_theory"wordSem";
 val _ = set_grammar_ancestry [
   "wordLang", "alignment", "finite_map", "misc", "asm",
   "ffi", (* for call_FFI *)
   "lprefix_lub", (* for build_lprefix_lub *)
-  "machine_ieee" (* for FP*)
+  "machine_ieee", (* for FP*)
+  "wordcommon"
 ]
+
 
 val _ = Datatype `
   buffer =
@@ -30,10 +33,10 @@ val buffer_write_def = Define`
     if cb.position + (n2w(dimindex(:'b) DIV 8)) * n2w(LENGTH cb.buffer) = w ∧ 0 < cb.space_left then
       SOME (cb with <| buffer := cb.buffer++[b] ; space_left := cb.space_left-1|>)
     else NONE`;
-
+(*
 val _ = Datatype `
   word_loc = Word ('a word) | Loc num num `;
-
+*)
 
 val is_fwd_ptr_def = Define `
   (is_fwd_ptr (Word w) = ((w && 3w) = 0w)) /\

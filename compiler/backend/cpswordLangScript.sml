@@ -39,7 +39,7 @@ val _ = Datatype `
               (num option) (* target of call *)
               (num list) (* arguments *)
               ((num # cpswordLang$prog) option)
-              (* handler: varname (* is it required? *), exception-handler code *)
+              (* handler: var to store exception (number?), exception-handler code *)
        | Seq cpswordLang$prog cpswordLang$prog
        | If cmp num num cpswordLang$prog cpswordLang$prog
        | Raise num
