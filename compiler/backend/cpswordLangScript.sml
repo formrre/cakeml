@@ -13,7 +13,6 @@ val _ = new_theory "cpswordLang";
 
 Type shift = ``:ast$shift``
 
-
 val _ = Datatype `
   exp = Const ('a word)
       | Var num
@@ -40,13 +39,14 @@ val _ = Datatype `
               (num option) (* target of call *)
               (num list) (* arguments *)
               ((num # cpswordLang$prog) option)
-              (* handler: varname, exception-handler code *)
+              (* handler: varname (* is it required? *), exception-handler code *)
        | Seq cpswordLang$prog cpswordLang$prog
        | If cmp num num cpswordLang$prog cpswordLang$prog
        | Raise num
        | Return num
        | Tick
        | FFI string num num num num num_set (* FFI name, conf_ptr, conf_len, array_ptr, array_len, cut-set *) `;
+(* num_set is abbreviation for unit num_map *)
 
 
 (* op:asm$binop  *)

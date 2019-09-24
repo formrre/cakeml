@@ -1,5 +1,5 @@
 (*
-  The formal semantics of wordLang
+  The formal semantics of cpswordLang
 *)
 open preamble cpswordLangTheory;
 local open alignmentTheory asmTheory ffiTheory in end;
@@ -11,8 +11,6 @@ val _ = set_grammar_ancestry [
   "lprefix_lub" (* for build_lprefix_lub *)
 ]
 
-
-(* TODO: to remove word_loc ... write_bytearray from wordSem *)
 val _ = Datatype `
   word_loc = Word ('a word) | Loc num num `;
 
@@ -41,24 +39,19 @@ val write_bytearray_def = Define `
      | SOME m => m
      | NONE => m)`;
 
-
 (*
 val _ = Datatype `
-  stack_frame = StackFrame num (num option)` (* name of the function, optional exception handler *)
-*)
-
-(* making stack fram even simpler *)
-val _ = Datatype `
   stack_frame = StackFrame (num option)` (* optional exception handler *)
+*)
 
 
 val _ = Datatype `
   state =
     <| locals    : ('a word_loc) num_map
-     ; stack     : (stack_frame) list
+  (* ; stack     : (stack_frame) list *)
      ; memory    : 'a word -> 'a word_loc
      ; memaddrs  : ('a word) set
-     ; handler   : num (* position of current handler frame on stack *)  (* why not have it num option  *)
+  (* ; handler   : num *)
      ; clock     : num
      ; be        : bool
      ; code      : (num # ('a cpswordLang$prog)) num_map
@@ -164,21 +157,11 @@ val jump_exc_def = Define `
   jump_exc ^s =
     if s.handler < LENGTH s.stack then
       case LASTN (s.handler+1) s.stack of
-      | StackFrame n (SOME hndl) :: stk =>
-          SOME (s with <| handler := hndl ; stack := stk |>)
-      | _ => NONE
-    else NONE`;
-*)
-
-val jump_exc_def = Define `
-  jump_exc ^s =
-    if s.handler < LENGTH s.stack then
-      case LASTN (s.handler+1) s.stack of
       | StackFrame (SOME hndl) :: stk =>
           SOME (s with <| handler := hndl ; stack := stk |>)
       | _ => NONE
     else NONE`;
-
+*)
 
 val find_code_def = Define `
   (find_code (SOME p) args code =
@@ -225,10 +208,13 @@ val cut_env_def = Define `
     then SOME (inter env name_set)
     else NONE`
 
+(*
 val push_hndle_def = Define `
   (push_hndle NONE ^s = s with <| stack := StackFrame NONE :: s.stack |>) /\
   (push_hndle (SOME (w:num, h: 'a cpswordLang$prog)) s = s with <| stack := StackFrame (SOME s.handler) :: s.stack |> )`
+*)
 
+(*
 val pop_stk_def = Define `
   pop_stk ^s =
     case s.stack of
@@ -236,7 +222,7 @@ val pop_stk_def = Define `
          SOME (s with <| locals := fromList []; stack := xs |>)
     | (StackFrame (SOME hndl)::xs) =>
          SOME (s with <| locals := fromList [] ; stack := xs ; handler := hndl |>) `;
-
+*)
 
 val evaluate_def = tDefine "evaluate" `
   (evaluate (Skip:'a cpswordLang$prog,^s) = (NONE,s)) /\
@@ -255,11 +241,11 @@ val evaluate_def = tDefine "evaluate" `
      case (word_exp s exp, get_var v s) of
        | (SOME (Word adr), SOME (Word w)) =>
            (case mem_store_byte_aux s.memory s.memaddrs s.be adr (w2w w) of
-              | SOME m => (NONE, st with memory := m)
+              | SOME m => (NONE, s with memory := m)
               | NONE => (SOME Error, s))
        | _ => (SOME Error, s)) /\
   (evaluate (Tick,s) =
-     if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
+     if s.clock = 0 then (SOME TimeOut,call_env [] s)
                     else (NONE,dec_clock s)) /\
   (evaluate (Seq c1 c2,s) =
      let (res,s1) = fix_clock s (evaluate (c1,s)) in
@@ -271,10 +257,7 @@ val evaluate_def = tDefine "evaluate" `
   (evaluate (Raise n,s) =
      case get_var n s of
      | NONE => (SOME Error,s)
-     | SOME w =>
-       (case jump_exc s of
-        | NONE => (SOME Error,s)
-        | SOME s => (SOME (Exception w),s))) /\
+     | SOME w => (SOME (Exception w),s)) /\
   (evaluate (If cmp r1 r2 c1 c2,s) =
     (case (get_var r1 s,get_var r2 s)of
     | SOME (Word x),SOME (Word y) =>
@@ -293,7 +276,7 @@ val evaluate_def = tDefine "evaluate" `
           | SOME bytes,SOME bytes2 =>
              (case call_FFI s.ffi ffi_index bytes bytes2 of
               | FFI_final outcome => (SOME (FinalFFI outcome),
-                                      call_env [] s with stack := [])
+                                      call_env [] s)
               | FFI_return new_ffi new_bytes =>
                 let new_m = write_bytearray w4 new_bytes s.memory s.memaddrs s.be in
                   (NONE, s with <| memory := new_m ;
@@ -313,20 +296,17 @@ val evaluate_def = tDefine "evaluate" `
           case ret of
           | NONE (* tail call *) =>
             if handler = NONE then
-             if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
+             if s.clock = 0 then (SOME TimeOut,call_env [] s)
              else (case evaluate (prog, call_env args (dec_clock s)) of
                     | (NONE,s) => (SOME Error,s)  (* the called function must return a value or it should end in an exception, it should not end in a result without execution *)
                     | (SOME res,s) => (SOME res,s))
-           else (SOME Error,s) (* tail-call requires no handler *) (* why? because there is no winding on the stack for tail-call?  *)
+           else (SOME Error,s) (* tail-call requires no handler *)
           | SOME n (* returning call, returns into var n *) =>
-              if s.clock = 0 then (SOME TimeOut,call_env [] s with stack := [])
-              else (case fix_clock (call_env args (push_hndle handler (dec_clock s)))
-                                   (evaluate (prog, call_env args (push_hndle handler (dec_clock s)))) of
+              if s.clock = 0 then (SOME TimeOut,call_env [] s)
+              else (case fix_clock (call_env args (dec_clock s))
+                                   (evaluate (prog, call_env args (dec_clock s))) of
                       | (NONE,st) => (SOME Error,st)
-                      | (SOME (Return retv),st) =>
-                          (case pop_stk st of
-                             | NONE => (SOME Error,st)
-                             | SOME st' => (NONE, set_var n retv st'))
+                      | (SOME (Return retv),st) => (NONE, set_var n retv st)
                       | (SOME (Exception exn),st) =>
                           (case handler of (* if handler is present, then handle exc *)
                             | NONE => (SOME (Exception exn),st)
@@ -337,8 +317,7 @@ val evaluate_def = tDefine "evaluate" `
    \\ REPEAT STRIP_TAC \\ TRY (full_simp_tac(srw_ss())[] \\ DECIDE_TAC)
    \\ imp_res_tac fix_clock_IMP_LESS_EQ \\ full_simp_tac(srw_ss())[]
    \\ imp_res_tac (GSYM fix_clock_IMP_LESS_EQ)
-   \\ TRY (Cases_on `handler`) \\ TRY (PairCases_on `x`)
-   \\ full_simp_tac(srw_ss())[set_var_def,call_env_def,dec_clock_def,push_hndle_def, LET_THM]
+   \\ full_simp_tac(srw_ss())[set_var_def,call_env_def,dec_clock_def, LET_THM]
    \\ rpt (pairarg_tac \\ full_simp_tac(srw_ss())[])
    \\ every_case_tac \\ full_simp_tac(srw_ss())[]
    \\ decide_tac)
@@ -394,37 +373,6 @@ val evaluate_ind = save_thm("evaluate_ind",
 val evaluate_def = save_thm("evaluate_def[compute]",
   REWRITE_RULE [fix_clock_evaluate] evaluate_def);
 
-(* observational semantics *)
-
-val semantics_def = Define `
-  semantics ^s start =
-  let prog = Call NONE (SOME start) [0] NONE in
-  if ∃k. case FST(evaluate (prog,s with clock := k)) of
-         | SOME (Exception _ _) => T
-         | SOME (Result ret _) => ret <> Loc 1 0
-         | SOME Error => T
-         | NONE => T
-         | _ => F
-  then Fail
-  else
-    case some res.
-      ∃k t r outcome.
-        evaluate (prog, s with clock := k) = (r,t) ∧
-        (case r of
-         | (SOME (FinalFFI e)) => outcome = FFI_outcome e
-         | (SOME (Result _ _)) => outcome = Success
-         | (SOME NotEnoughSpace) => outcome = Resource_limit_hit
-         | _ => F) ∧
-        res = Terminate outcome t.ffi.io_events
-      of
-    | SOME res => res
-    | NONE =>
-      Diverge
-         (build_lprefix_lub
-           (IMAGE (λk. fromList
-              (SND (evaluate (prog,s with clock := k))).ffi.io_events) UNIV))`;
-
-(* clean up *)
 
 val _ = map delete_binding ["evaluate_AUX_def", "evaluate_primitive_def"];
 
