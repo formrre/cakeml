@@ -326,6 +326,27 @@ val _ = Define `
 
 val _ = Lib.with_flag (computeLib.auto_import_definitions, false) (List.map Defn.save_defn) pmatch_defn;
 
+(*val pmatch_all : env_ctor -> store v -> list (pat * exp) -> v -> match_result (alist varN v * exp)*)
+ val pmatch_all_defn = Defn.Hol_multi_defns `
+
+((pmatch_all:((modN),(conN),(num#stamp))namespace ->((v)store_v)list ->(pat#exp)list -> v ->((varN#v)list#exp)match_result) envC s [] v=  No_match)
+/\
+((pmatch_all:((modN),(conN),(num#stamp))namespace ->((v)store_v)list ->(pat#exp)list -> v ->((varN#v)list#exp)match_result) envC s ((p,e)::ps) v=
+  (if ALL_DISTINCT (pat_bindings p []) then
+    (case pmatch envC s p v [] of
+      Match_type_error => Match_type_error
+    | No_match => pmatch_all envC s ps v
+    | Match env_v' =>
+        (case pmatch_all envC s ps v of
+          Match_type_error => Match_type_error
+        | _ => Match (env_v',e)
+        )
+    )
+  else Match_type_error))`;
+
+val _ = Lib.with_flag (computeLib.auto_import_definitions, false) (List.map Defn.save_defn) pmatch_all_defn;
+
+
 (* Bind each function of a mutually recursive set of functions to its closure *)
 (*val build_rec_env : list (varN * varN * exp) -> sem_env v -> env_val -> env_val*)
 val _ = Define `

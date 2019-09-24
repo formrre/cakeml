@@ -123,6 +123,13 @@ val (pmatch_def, pmatch_ind) =
   srw_tac [ARITH_ss] [size_abbrevs, pat_size_def]);
 val _ = register "pmatch" pmatch_def pmatch_ind;
 
+val (pmatch_all_def, pmatch_all_ind) =
+  tprove_no_defn ((pmatch_all_def, pmatch_all_ind),
+  wf_rel_tac
+  `inv_image $< (λ(s,a,p,c). LENGTH p)` >>
+  srw_tac [ARITH_ss] [size_abbrevs, pat_size_def]);
+val _ = register "pmatch_all" pmatch_all_def pmatch_all_ind;
+
 val (type_subst_def, type_subst_ind) =
   tprove_no_defn ((type_subst_def, type_subst_ind),
   WF_REL_TAC `measure (λ(x,y). t_size y)` >>
@@ -260,21 +267,29 @@ val fix_clock_IMP = Q.prove(
   `fix_clock s x = (s1,res) ==> s1.clock <= s.clock`,
   Cases_on `x` \\ fs [fix_clock_def] \\ rw [] \\ fs []);
 
+Theorem pmatch_all_IMP_exp_size:
+  !pes.
+    pmatch_all envC refs pes v = Match (d,e) ==>
+    exp_size e < exp3_size pes
+Proof
+  Induct \\ fs [FORALL_PROD,pmatch_all_def] \\ rw [] \\ fs []
+  \\ every_case_tac \\ fs [] \\ rveq \\ fs [exp_size_def]
+QED
+
 val (evaluate_def, evaluate_ind) =
   tprove_no_defn ((evaluateTheory.evaluate_def,evaluateTheory.evaluate_ind),
   wf_rel_tac`inv_image ($< LEX $<)
     (λx. case x of
-         | INL(s,_,es) => (s.clock,exps_size es)
-         | INR(s,_,_,pes,_) => (s.clock,pes_size pes))` >>
+         | (s,_,es) => (s.clock,exps_size es))` >>
   rw[size_abbrevs,exp_size_def,
   dec_clock_def,LESS_OR_EQ,
   do_if_def,do_log_def] >>
   imp_res_tac fix_clock_IMP >>
+  imp_res_tac pmatch_all_IMP_exp_size >>
   simp[SIMP_RULE(srw_ss())[]exps_size_thm,MAP_REVERSE,SUM_REVERSE]);
 
 Theorem evaluate_clock:
-   (∀(s1:'ffi state) env e r s2. evaluate s1 env e = (s2,r) ⇒ s2.clock ≤ s1.clock) ∧
-   (∀(s1:'ffi state) env v p v' r s2. evaluate_match s1 env v p v' = (s2,r) ⇒ s2.clock ≤ s1.clock)
+   (∀(s1:'ffi state) env e r s2. evaluate s1 env e = (s2,r) ⇒ s2.clock ≤ s1.clock)
 Proof
   ho_match_mp_tac evaluate_ind >> rw[evaluate_def] >>
   every_case_tac >> fs[] >> rw[] >> rfs[] >>

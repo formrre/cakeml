@@ -42,7 +42,6 @@ val _ = Define `
 
 
 (*val evaluate : forall 'ffi. state 'ffi -> sem_env v -> list exp -> state 'ffi * result (list v) v*)
-(*val evaluate_match : forall 'ffi. state 'ffi -> sem_env v -> v -> list (pat * exp) -> v -> state 'ffi * result (list v) v*)
  val evaluate_defn = Defn.Hol_multi_defns `
 
 ((evaluate:'ffi state ->(v)sem_env ->(exp)list -> 'ffi state#(((v)list),(v))result) st env []=  (st, Rval []))
@@ -67,7 +66,13 @@ val _ = Define `
 /\
 ((evaluate:'ffi state ->(v)sem_env ->(exp)list -> 'ffi state#(((v)list),(v))result) st env [Handle e pes]=
    ((case fix_clock st (evaluate st env [e]) of
-    (st', Rerr (Rraise v)) => evaluate_match st' env v pes v
+    (st', Rerr (Rraise v)) =>
+      (case pmatch_all env.c st'.refs pes v of
+        Match_type_error => (st', Rerr (Rabort Rtype_error))
+      | No_match => (st', Rerr (Rraise v))
+      | Match (env_delta, e') =>
+          evaluate st' ( env with<| v := (nsAppend (alist_to_ns env_delta) env.v) |>) [e']
+      )
   | res => res
   )))
 /\
@@ -135,7 +140,12 @@ val _ = Define `
 ((evaluate:'ffi state ->(v)sem_env ->(exp)list -> 'ffi state#(((v)list),(v))result) st env [Mat e pes]=
    ((case fix_clock st (evaluate st env [e]) of
     (st', Rval v) =>
-      evaluate_match st' env (HD v) pes bind_exn_v
+      (case pmatch_all env.c st'.refs pes (HD v) of
+        Match_type_error => (st', Rerr (Rabort Rtype_error))
+      | No_match => (st', Rerr (Rraise bind_exn_v))
+      | Match (env_delta, e') =>
+          evaluate st' ( env with<| v := (nsAppend (alist_to_ns env_delta) env.v) |>) [e']
+      )
   | res => res
   )))
 /\
@@ -155,18 +165,7 @@ val _ = Define `
    (evaluate st env [e]))
 /\
 ((evaluate:'ffi state ->(v)sem_env ->(exp)list -> 'ffi state#(((v)list),(v))result) st env [Lannot e l]=
-   (evaluate st env [e]))
-/\
-((evaluate_match:'ffi state ->(v)sem_env -> v ->(pat#exp)list -> v -> 'ffi state#(((v)list),(v))result) st env v [] err_v=  (st, Rerr (Rraise err_v)))
-/\
-((evaluate_match:'ffi state ->(v)sem_env -> v ->(pat#exp)list -> v -> 'ffi state#(((v)list),(v))result) st env v ((p,e)::pes) err_v=
-    (if ALL_DISTINCT (pat_bindings p []) then
-    (case pmatch env.c st.refs p v [] of
-      Match env_v' => evaluate st ( env with<| v := (nsAppend (alist_to_ns env_v') env.v) |>) [e]
-    | No_match => evaluate_match st env v pes err_v
-    | Match_type_error => (st, Rerr (Rabort Rtype_error))
-    )
-  else (st, Rerr (Rabort Rtype_error))))`;
+   (evaluate st env [e]))`;
 
 val _ = Lib.with_flag (computeLib.auto_import_definitions, false) (List.map Defn.save_defn) evaluate_defn;
 
@@ -239,6 +238,5 @@ val _ = Lib.with_flag (computeLib.auto_import_definitions, false) (List.map Defn
   )))`;
 
 val _ = Lib.with_flag (computeLib.auto_import_definitions, false) (List.map Defn.save_defn) evaluate_decs_defn;
-
 val _ = export_theory()
 
