@@ -325,45 +325,26 @@ val evaluate_def = tDefine "evaluate" `
 val evaluate_ind = theorem"evaluate_ind";
 
 
+
 Theorem evaluate_clock:
-   !xs s1 vs s2. T  ==>
-                 s2.clock <= s1.clock
+   !prog s r s'. (evaluate (prog,s) = (r,s')) ==>
+                 s'.clock <= s.clock
 Proof
-  cheat
-  (*
   recInduct evaluate_ind \\ REPEAT STRIP_TAC
   \\ POP_ASSUM MP_TAC \\ ONCE_REWRITE_TAC [evaluate_def]
-  \\ rpt (disch_then strip_assume_tac)
-  \\ full_simp_tac(srw_ss())[] \\ rpt var_eq_tac \\ full_simp_tac(srw_ss())[]
-  \\ rpt (pop_assum mp_tac)
-  \\ rpt (BasicProvers.TOP_CASE_TAC \\ full_simp_tac(srw_ss())[])
-  \\ rpt (disch_then strip_assume_tac)
-  \\ imp_res_tac alloc_clock \\ full_simp_tac(srw_ss())[]
-  \\ rpt var_eq_tac \\ full_simp_tac(srw_ss())[]
-  \\ full_simp_tac(srw_ss())[set_vars_def,set_var_def,set_store_def]
-  \\ imp_res_tac inst_clock \\ full_simp_tac(srw_ss())[]
-  \\ full_simp_tac(srw_ss())[mem_store_def,call_env_def,dec_clock_def]
-  \\ rpt var_eq_tac \\ full_simp_tac(srw_ss())[]
-  \\ full_simp_tac(srw_ss())[LET_THM] \\ rpt (pairarg_tac \\ full_simp_tac(srw_ss())[])
-  \\ full_simp_tac(srw_ss())[jump_exc_def,pop_env_def]
-  \\ every_case_tac \\ full_simp_tac(srw_ss())[]
-  \\ rpt var_eq_tac \\ full_simp_tac(srw_ss())[]
-  \\ imp_res_tac fix_clock_IMP_LESS_EQ \\ full_simp_tac(srw_ss())[]
-  \\ imp_res_tac LESS_EQ_TRANS \\ full_simp_tac(srw_ss())[]
-  \\ TRY (Cases_on `handler`)
-  \\ TRY (PairCases_on `x`)
-  \\ TRY (PairCases_on `x''`)
-  \\ full_simp_tac(srw_ss())[push_env_def,LET_THM]
-  \\ rpt (pairarg_tac \\ full_simp_tac(srw_ss())[])
-  \\ decide_tac
-  *)
+  \\ rw [] \\ every_case_tac
+  \\ fs [set_vars_def,set_var_def, mem_store_def,call_env_def,dec_clock_def, LET_THM]
+  \\ rveq \\ fs []
+  \\ rpt (pairarg_tac \\ fs [])
+  \\ every_case_tac \\ fs [] \\ rveq
+  \\ imp_res_tac fix_clock_IMP_LESS_EQ
+  \\ imp_res_tac LESS_EQ_TRANS \\ fs []
 QED
 
 val fix_clock_evaluate = Q.prove(
-  `fix_clock s (evaluate (c1,s)) = evaluate (c1,s)`,
-  Cases_on `evaluate (c1,s)` \\ full_simp_tac(srw_ss())[fix_clock_def]
-  \\ imp_res_tac evaluate_clock \\ full_simp_tac(srw_ss())[GSYM NOT_LESS]
-  \\ full_simp_tac(srw_ss())[state_component_equality]);
+  `fix_clock s (evaluate (prog,s)) = evaluate (prog,s)`,
+  Cases_on `evaluate (prog,s)` \\ fs [fix_clock_def]
+  \\ imp_res_tac evaluate_clock \\ fs [GSYM NOT_LESS, state_component_equality]);
 
 (* We store the theorems without fix_clock *)
 
