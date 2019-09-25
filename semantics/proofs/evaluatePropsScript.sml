@@ -92,9 +92,7 @@ QED
 
 Theorem evaluate_call_FFI_rel:
    (∀(s:'ffi state) e exp.
-      RTC call_FFI_rel s.ffi (FST (evaluate s e exp)).ffi) ∧
-   (∀(s:'ffi state) e v pes errv.
-      RTC call_FFI_rel s.ffi (FST (evaluate_match s e v pes errv)).ffi)
+      RTC call_FFI_rel s.ffi (FST (evaluate s e exp)).ffi)
 Proof
   ho_match_mp_tac terminationTheory.evaluate_ind >>
   srw_tac[][terminationTheory.evaluate_def] >>
@@ -113,9 +111,6 @@ QED
 Theorem evaluate_call_FFI_rel_imp:
    (∀s e p s' r.
       evaluate s e p = (s',r) ⇒
-      RTC call_FFI_rel s.ffi s'.ffi) ∧
-   (∀s e v pes errv s' r.
-      evaluate_match s e v pes errv = (s',r) ⇒
       RTC call_FFI_rel s.ffi s'.ffi)
 Proof
   metis_tac[PAIR,FST,evaluate_call_FFI_rel]
@@ -163,9 +158,7 @@ QED
 
 Theorem evaluate_io_events_mono:
    (∀(s:'ffi state) e exp.
-      io_events_mono s.ffi (FST (evaluate s e exp)).ffi) ∧
-   (∀(s:'ffi state) e v pes errv.
-      io_events_mono s.ffi (FST (evaluate_match s e v pes errv)).ffi)
+      io_events_mono s.ffi (FST (evaluate s e exp)).ffi)
 Proof
   metis_tac[evaluate_call_FFI_rel,call_FFI_rel_io_events_mono]
 QED
@@ -173,9 +166,6 @@ QED
 Theorem evaluate_io_events_mono_imp:
    (∀s e p s' r.
       evaluate s e p = (s',r) ⇒
-      io_events_mono s.ffi s'.ffi) ∧
-   (∀s e v pes errv s' r.
-      evaluate_match s e v pes errv = (s',r) ⇒
       io_events_mono s.ffi s'.ffi)
 Proof
   metis_tac[PAIR,FST,evaluate_io_events_mono]
@@ -304,9 +294,7 @@ Proof
 QED
 
 Theorem is_clock_io_mono_evaluate:
-   (!(s : 'ffi state) env es. is_clock_io_mono (\s. evaluate s env es) s) /\
-   (!(s : 'ffi state) env v pes err_v.
-        is_clock_io_mono (\s. evaluate_match s env v pes err_v) s)
+   (!(s : 'ffi state) env es. is_clock_io_mono (\s. evaluate s env es) s)
 Proof
   ho_match_mp_tac evaluate_ind
   \\ rpt strip_tac \\ fs [evaluate_def]
@@ -368,16 +356,6 @@ Proof
   prove_extra is_clock_io_mono_extra is_clock_io_mono_evaluate
 QED
 
-Theorem evaluate_match_add_to_clock:
-   !(s:'ffi state) env v pes err_v s' r extra.
-    evaluate_match s env v pes err_v = (s', r) ∧
-    r ≠ Rerr (Rabort Rtimeout_error) ⇒
-    evaluate_match (s with clock := s.clock + extra) env v pes err_v =
-      (s' with clock := s'.clock + extra,r)
-Proof
-  prove_extra is_clock_io_mono_extra is_clock_io_mono_evaluate
-QED
-
 Theorem list_result_eq_Rval[simp]:
    list_result r = Rval r' ⇔ ∃v. r' = [v] ∧ r = Rval v
 Proof
@@ -404,8 +382,7 @@ Proof
 QED
 
 Theorem evaluate_length:
-   (∀(s:'ffi state) e p s' r. evaluate s e p = (s',Rval r) ⇒ LENGTH r = LENGTH p) ∧
-   (∀(s:'ffi state) e v p er s' r. evaluate_match s e v p er = (s',Rval r) ⇒ LENGTH r = 1)
+   (∀(s:'ffi state) e p s' r. evaluate s e p = (s',Rval r) ⇒ LENGTH r = LENGTH p)
 Proof
   ho_match_mp_tac evaluate_ind >>
   srw_tac[][evaluate_def,LENGTH_NIL] >> srw_tac[][] >>
@@ -507,16 +484,6 @@ Proof
  >> simp [combine_dec_result_def, sem_env_component_equality]
 QED
  *)
-
-Theorem evaluate_match_list_result:
-   evaluate_match s e v p er = (s',r) ⇒
-   ∃r'. r = list_result r'
-Proof
-  Cases_on`r` >> srw_tac[][] >>
-  imp_res_tac evaluate_length >|[
-    Cases_on`a` >> full_simp_tac(srw_ss())[LENGTH_NIL],all_tac] >>
-  metis_tac[list_result_def]
-QED
 
 Theorem is_clock_io_mono_evaluate_decs:
    !s e p. is_clock_io_mono (\s. evaluate_decs s e p) s
@@ -647,10 +614,7 @@ QED
 Theorem evaluate_add_to_clock_io_events_mono:
    (∀(s:'ffi state) e d extra.
      io_events_mono (FST(evaluate s e d)).ffi
-     (FST(evaluate (s with clock := s.clock + extra) e d)).ffi) ∧
-   (∀(s:'ffi state) e v d er extra.
-     io_events_mono (FST(evaluate_match s e v d er)).ffi
-     (FST(evaluate_match (s with clock := s.clock + extra) e v d er)).ffi)
+     (FST(evaluate (s with clock := s.clock + extra) e d)).ffi)
 Proof
   prove_extra is_clock_io_mono_extra_mono is_clock_io_mono_evaluate
 QED
@@ -699,11 +663,6 @@ Theorem evaluate_state_unchanged:
     evaluate st env es = (st', r)
     ⇒
     st'.next_type_stamp = st.next_type_stamp ∧
-    st'.next_exn_stamp = st.next_exn_stamp) ∧
-  (!(st:'ffi state) env v pes err_v st' r.
-    evaluate_match st env v pes err_v = (st', r)
-    ⇒
-    st'.next_type_stamp = st.next_type_stamp ∧
     st'.next_exn_stamp = st.next_exn_stamp)
 Proof
  ho_match_mp_tac evaluate_ind
@@ -739,14 +698,6 @@ val evaluate_ffi_sandwich = Q.prove(
   imp_res_tac evaluate_io_events_mono_imp \\ fs[] \\
   metis_tac[io_events_mono_antisym]);
 
-val evaluate_match_ffi_sandwich = Q.prove(
-  `evaluate s env exp = (s',r) ∧
-   evaluate_match s' env' v pes errv  = (s'',r') ∧
-   s''.ffi = s.ffi ⇒ s'.ffi = s.ffi`,
-  rw[] \\
-  imp_res_tac evaluate_io_events_mono_imp \\ fs[] \\
-  metis_tac[io_events_mono_antisym]);
-
 val result_CASE_fst_cong = Q.prove(
   `result_CASE r (λa. (c,f a)) (λb. (c,g b)) =
    (c, result_CASE r (λa. f a) (λb. g b))`,
@@ -757,7 +708,7 @@ val option_CASE_fst_cong = Q.prove(
    (c, option_CASE r f (λb. g b))`,
   Cases_on`r` \\ fs[]);
 
-val evaluate_state_const = CONJUNCT1 evaluate_state_unchanged;
+val evaluate_state_const = evaluate_state_unchanged;
 
 Theorem evaluate_ffi_intro:
     (∀(s:'a state) env e s' r.
@@ -768,16 +719,7 @@ Theorem evaluate_ffi_intro:
      ∀(t:'b state).
        t.clock = s.clock ∧ t.refs = s.refs
        ⇒
-       evaluate t env e = (t with <| clock := s'.clock; refs := s'.refs |>, r)) ∧
-  (∀(s:'a state) env v pes errv s' r.
-     evaluate_match s env v pes errv = (s',r) ∧
-     s'.ffi = s.ffi ∧
-     (∀outcome. r ≠ Rerr(Rabort(Rffi_error outcome)))
-     ⇒
-     ∀(t:'b state).
-       t.clock = s.clock ∧ t.refs = s.refs
-       ⇒
-       evaluate_match t env v pes errv = (t with <| clock := s'.clock; refs := s'.refs |>, r))
+       evaluate t env e = (t with <| clock := s'.clock; refs := s'.refs |>, r))
 Proof
   ho_match_mp_tac evaluate_ind
   \\ rw[]
@@ -816,7 +758,8 @@ Proof
     >- ( strip_tac \\ rveq \\ fs[] )
     \\ strip_tac \\ fs[]
     \\ rename1`evaluate s _ _ = (s1,_)`
-    \\ `s1.ffi = s.ffi` by metis_tac[evaluate_match_ffi_sandwich]
+    \\ fs [CaseEq"match_result",pair_case_eq] \\ rveq \\ fs []
+    \\ `s1.ffi = s.ffi` by metis_tac[evaluate_ffi_sandwich]
     \\ fs[] \\ rfs[]
     (*
     \\ qmatch_goalsub_abbrev_tac`evaluate_match t1`
@@ -923,7 +866,8 @@ Proof
     >- ( strip_tac \\ rveq \\ fs[] )
     \\ strip_tac \\ fs[]
     \\ rename1`evaluate s _ _ = (s1,_)`
-    \\ `s1.ffi = s.ffi` by metis_tac[evaluate_match_ffi_sandwich]
+    \\ fs [CaseEq"match_result",pair_case_eq] \\ rveq \\ fs []
+    \\ `s1.ffi = s.ffi` by metis_tac[evaluate_ffi_sandwich]
     \\ fs[] \\ rfs[]
     (*
     \\ qmatch_goalsub_abbrev_tac`evaluate_match t1`
@@ -956,15 +900,6 @@ Proof
     \\ rw[state_component_equality] )
   >- (
     rfs[evaluate_def]
-    \\ rw[state_component_equality] )
-  >- (
-    rfs[evaluate_def]
-    \\ rw[state_component_equality] )
-  >- (
-    rfs[evaluate_def]
-    \\ reverse TOP_CASE_TAC \\ fs[]
-    >- rw[state_component_equality]
-    \\ TOP_CASE_TAC \\ fs[]
     \\ rw[state_component_equality] )
 QED
 
@@ -1031,21 +966,6 @@ Theorem evaluate_minimal_clock:
     ==>
     ?s''.
       evaluate (s with clock := k) env es =
-      (s'',Rerr (Rabort Rtimeout_error)) /\
-      io_events_mono s''.ffi s'.ffi)
-Proof
-  metis_tac evaluate_minimal_lemmas
-QED
-
-Theorem evaluate_match_minimal_clock:
-   (!(s:'ffi state) env v pes err_v s' r k.
-    evaluate_match s env v pes err_v = (s',r) ∧
-    s'.clock = 0 ∧
-    r ≠ Rerr (Rabort Rtimeout_error) ∧
-    s.clock > k
-    ==>
-    ?s''.
-      evaluate_match (s with clock := k) env v pes err_v =
       (s'',Rerr (Rabort Rtimeout_error)) /\
       io_events_mono s''.ffi s'.ffi)
 Proof
