@@ -2154,9 +2154,26 @@ fun prove_EvalPatRel goal hol2deep = let
                  >> rfs []
                  >> rfs [pmatch_def,same_ctor_def,id_to_n_def]
     end (asms,concl)) handle Option => raise(ERR "tac2" "No matching assumption found")
+(*
+  set_goal(asms,goal)
+*)
   val th = auto_prove_asms "prove_EvalPatRel" ((asms,goal),
-    simp[EvalPatRel_def,EXISTS_PROD] >>
-    SRW_TAC [] [] \\ fs [] >>
+    simp[EvalPatRel_def,EXISTS_PROD]
+    \\ rpt strip_tac
+    \\ pop_assum mp_tac
+    \\ TRY CASE_TAC
+    \\ rpt var_eq_tac \\ fs []
+    \\ rpt var_eq_tac \\ fs []
+    \\ fs[lookup_cons_def]
+    \\ rpt tac
+    \\ CONV_TAC ((RATOR_CONV o RAND_CONV) EVAL)
+    \\ rpt strip_tac
+    \\ rpt var_eq_tac \\ fs []
+    \\ fs[LIST_TYPE_def,pmatch_def,same_type_def,
+          same_ctor_def,id_to_n_def,EXISTS_PROD,
+          pat_bindings_def,lit_same_type_def]
+    )
+(*
     POP_ASSUM MP_TAC >>
     REPEAT tac
     \\ CONV_TAC ((RATOR_CONV o RAND_CONV) EVAL)
@@ -2170,7 +2187,7 @@ fun prove_EvalPatRel goal hol2deep = let
     rw[] >> simp[Once evaluate_def] >>
     fs [build_conv_def,do_con_check_def] >>
     fs [Once evaluate_def] >> every_case_tac >>
-    rpt (CHANGED_TAC (every_case_tac >> TRY(fs[] >> NO_TAC) >> tac2)))
+    rpt (CHANGED_TAC (every_case_tac >> TRY(fs[] >> NO_TAC) >> tac2))) *)
   in th end handle HOL_ERR e =>
   (prove_EvalPatRel_fail := goal;
    failwith "prove_EvalPatRel failed");
@@ -2305,6 +2322,49 @@ fun to_pattern tm =
 val pmatch_hol2deep_fail = ref T;
 val tm = !pmatch_hol2deep_fail;
 
+(*
+
+val _ = patternMatchesSyntax.ENABLE_PMATCH_CASES();
+val tm = ``case f x of ([t]::[y]::ys) => t + y + (3:num) + k | _ => 5``
+val def = Define `foo f x k = ^tm`
+val _ = translate def
+
+val original_tm = tm
+val lemma = pmatch_preprocess_conv tm
+val tm = lemma |> concl |> rand
+
+val _ = Datatype `
+  tree = Empty
+       | Red tree 'a tree
+       | Black tree 'a tree`;
+
+(* causes the normal case-of syntax to be parsed as PMATCH *)
+val _ = patternMatchesSyntax.ENABLE_PMATCH_CASES();
+
+val _ = Datatype `
+  tree = Empty
+       | Red tree 'a tree
+       | Black tree 'a tree`;
+
+val balance_black_def = Define `
+  balance_black a n b =
+    case (a,b) of
+    | (Red (Red a x b) y c,d) => Red (Black a x b) y (Black c n d)
+    | (Red a x (Red b y c),d) => Red (Black a x b) y (Black c n d)
+    | (a,Red (Red b y c) z d) => Red (Black a n b) y (Black c z d)
+    | (a,Red b y (Red c z d)) => Red (Black a n b) y (Black c z d)
+    | other => Black a n b`
+
+val res = translate balance_black_def;
+
+val (_,[th],_) = preprocess_def balance_black_def
+val tm = th |> SPEC_ALL |> concl |> rand
+val original_tm = tm
+val lemma = pmatch_preprocess_conv tm
+val tm = lemma |> concl |> rand
+
+*)
+
 fun pmatch_hol2deep tm hol2deep = let
   val (x,ts) = dest_pmatch_K_T tm
   val v = genvar (type_of x)
@@ -2315,22 +2375,16 @@ fun pmatch_hol2deep tm hol2deep = let
   val pmatch_inv = get_type_inv pmatch_type
   val x_exp = x_res |> UNDISCH |> concl |> rator |> rand
   val nil_lemma = Eval_PMATCH_NIL
-                  |> ISPEC pmatch_inv
-                  |> ISPEC x_exp
-                  |> ISPEC v
-                  |> ISPEC x_inv
+                  |> ISPECL [pmatch_inv,x_exp,v,x_inv]
   val cons_lemma = Eval_PMATCH
-                   |> ISPEC pmatch_inv
-                   |> ISPEC x_inv
-                   |> ISPEC x_exp
-                   |> ISPEC v
+                   |> ISPECL [pmatch_inv,x_inv,x_exp,v]
   fun prove_hyp conv th =
     MP (CONV_RULE ((RATOR_CONV o RAND_CONV) conv) th) TRUTH
   val assm = nil_lemma |> concl |> dest_imp |> fst
   fun trans [] = nil_lemma
     | trans ((pat,rhs_tm)::xs) = let
     (*
-    val ((pat,rhs_tm)::xs) = List.drop(ts,0)
+    val ((pat,rhs_tm)::xs) = List.drop(ts,3)
     *)
     val th = trans xs
     val p = pat |> dest_pabs |> snd |> hol2deep
@@ -2342,7 +2396,8 @@ fun pmatch_hol2deep tm hol2deep = let
     val lemma = lemma |> GEN pat_var |> ISPEC pat
     val lemma = prove_hyp (SIMP_CONV (srw_ss()) [FORALL_PROD]) lemma
     val lemma = UNDISCH lemma
-    val th = UNDISCH th
+    val th0 = UNDISCH th |> CONJUNCT1
+    val th = UNDISCH th |> CONJUNCT2
              |> CONV_RULE ((RATOR_CONV o RAND_CONV) (UNBETA_CONV v))
     val th = MATCH_MP lemma th
     val th = remove_primes th
@@ -2355,14 +2410,15 @@ fun pmatch_hol2deep tm hol2deep = let
     val goal = fst (dest_imp (concl th))
     val th = MATCH_MP th (prove_EvalPatBind goal hol2deep)
     val th = remove_primes th
-    val th = CONV_RULE ((RATOR_CONV o RAND_CONV)
+    val th = MP th th0
+    val th = CONV_RULE ((RAND_CONV o RATOR_CONV o RAND_CONV)
           (SIMP_CONV std_ss [FORALL_PROD,PMATCH_SIMP,
               patternMatchesTheory.PMATCH_ROW_COND_def])) th
     val th = DISCH assm th
     in th end
   val th = trans ts
-  val th = MATCH_MP th (UNDISCH x_res)
-  val th = UNDISCH_ALL th
+  val th = MATCH_MP th (x_res |> UNDISCH)
+  val th = UNDISCH_ALL (th |> CONJUNCT2)
   in th end handle HOL_ERR e =>
   (pmatch_hol2deep_fail := tm;
    failwith ("pmatch_hol2deep failed (" ^ #message e ^ ")"));

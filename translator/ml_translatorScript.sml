@@ -122,7 +122,7 @@ Theorem evaluate_empty_state_IMP:
 Proof
   rw [eval_rel_def]
   \\ drule (INST_TYPE[alpha|->oneSyntax.one_ty,beta|->``:'ffi``]
-              (CONJUNCT1 evaluatePropsTheory.evaluate_ffi_intro))
+              evaluatePropsTheory.evaluate_ffi_intro)
   \\ disch_then (qspec_then `s with clock := ck1` mp_tac)
   \\ fs [empty_state_def]
   \\ strip_tac \\ asm_exists_tac \\ fs []
@@ -1976,7 +1976,7 @@ Proof
   \\ drule evaluate_add_to_clock
   \\ rpt (pop_assum kall_tac) \\ rw []
   \\ first_x_assum (qspec_then `ck1` assume_tac)
-  \\ qexists_tac `ck1' + ck1` \\ fs [pat_bindings_def,pmatch_def]
+  \\ qexists_tac `ck1' + ck1` \\ fs [pat_bindings_def,pmatch_def,pmatch_all_def]
   \\ fs [state_component_equality]
 QED
 
@@ -2530,30 +2530,6 @@ Proof
   Cases_on `t1` \\ Cases_on `t2` \\ Cases_on `t3` \\ fs [same_type_def]
 QED
 
-Theorem evaluate_match_MAP = Q.prove(`
-  !l1 xs.
-      MEM (x1,x2,x3,t1) full_ps /\ full_ps <> [] /\
-      good_cons_env full_ps env /\ set l1 SUBSET set full_ps /\
-      ~MEM t1 (MAP (SND o SND o SND) l1) ==>
-      evaluate_match (s:'ffi state) env
-        (Conv (SOME t1) vals)
-        (MAP (λ(name,vars,x,t). (Pcon (SOME name)
-           (MAP Pvar vars),x)) l1 ++ xs) err =
-      evaluate_match s env (Conv (SOME t1) vals) xs err`,
-  Induct
-  \\ fs [FORALL_PROD,evaluate_def,pmatch_def,pat_bindings_def]
-  \\ rpt strip_tac
-  \\ fs [good_cons_env_def,lookup_cons_def]
-  \\ fs [EVERY_MEM]
-  \\ res_tac \\ fs []
-  \\ `?xx. HD full_ps = xx` by fs [] \\ PairCases_on `xx`
-  \\ fs []
-  \\ `MEM (HD full_ps) full_ps` by (Cases_on `full_ps` \\ fs [])
-  \\ rfs [] \\ fs []
-  \\ res_tac \\ fs []
-  \\ imp_res_tac same_type_trans \\ fs []
-  \\ fs [same_ctor_def]) |> GEN_ALL;
-
 Theorem pmatch_list_MAP_Pvar:
    !vars vals aux.
       LENGTH vars = LENGTH vals ==>
@@ -2561,6 +2537,84 @@ Theorem pmatch_list_MAP_Pvar:
       Match (REVERSE (ZIP (vars, vals)) ++ aux)
 Proof
   Induct \\ Cases_on `vals` \\ fs [] \\ fs [pmatch_def]
+QED
+
+Theorem pmatch_success:
+  nsLookup env.c name = SOME (LENGTH vars, stamp) /\
+  same_type stamp t1 /\ same_ctor stamp t1 /\
+  LENGTH vars = LENGTH vals ==>
+  pmatch env.c refs (Pcon (SOME name) (MAP Pvar vars)) (Conv (SOME t1) vals) [] =
+    Match (REVERSE (ZIP (vars,vals)))
+Proof
+  fs [pmatch_def,pmatch_list_MAP_Pvar]
+QED
+
+Theorem pmatch_all_No_match:
+  !l1 xs name vals vars stamp.
+      MEM (x1,x2,x3,t1) full_ps /\ full_ps <> [] /\
+      good_cons_env full_ps env /\
+      set l1 SUBSET set full_ps /\
+      ~MEM t1 (MAP (SND o SND o SND) l1) ==>
+      pmatch_all env.c refs
+         (MAP (λ(name,vars,x,t:stamp). (Pcon (SOME name) (MAP Pvar vars),x)) l1)
+         (Conv (SOME t1) vals) = No_match
+Proof
+  Induct
+  \\ fs [FORALL_PROD,evaluate_def,pmatch_def,pat_bindings_def]
+  THEN1 (fs [pmatch_all_def,pat_bindings_def,pmatch_success])
+  \\ rpt strip_tac \\ fs []
+  \\ fs [pmatch_all_def]
+  \\ fs [good_cons_env_def,lookup_cons_def]
+  \\ fs [EVERY_MEM]
+  \\ res_tac \\ fs [pat_bindings_def]
+  \\ fs [pmatch_def]
+  \\ fs [same_ctor_def]
+  \\ Cases_on `HD full_ps`
+  \\ PairCases_on `r` \\ fs []
+  \\ res_tac  \\ fs [] \\ fs []
+  \\ fs [CaseEq"match_result",bool_case_eq]
+  \\ metis_tac [same_type_def, same_type_trans]
+QED
+
+Theorem pmatch_all_Match:
+  !l1 xs name vals vars stamp.
+      MEM (x1,x2,x3,t1) full_ps /\ full_ps <> [] /\
+      good_cons_env full_ps env /\
+      set l1 SUBSET set full_ps /\
+      set l2 SUBSET set full_ps /\
+      ~MEM t1 (MAP (SND o SND o SND) l1) /\
+      ~MEM t1 (MAP (SND o SND o SND) l2) /\
+      LENGTH vals = LENGTH vars /\
+      nsLookup env.c name = SOME (LENGTH vars, stamp) /\
+      same_type stamp t1 /\ same_ctor stamp t1 /\
+      ALL_DISTINCT (pats_bindings (MAP Pvar vars) []) ==>
+      pmatch_all env.c refs
+         (MAP (λ(name,vars,x,t). (Pcon (SOME name) (MAP Pvar vars),x)) l1 ++
+          (Pcon (SOME name) (MAP Pvar vars),e)::
+          MAP (λ(name,vars,x,t:stamp). (Pcon (SOME name) (MAP Pvar vars),x)) l2)
+         (Conv (SOME t1) vals) =
+        Match (REVERSE (ZIP (vars, vals)),e)
+Proof
+  Induct
+  \\ fs [FORALL_PROD,evaluate_def,pmatch_def,pat_bindings_def]
+  THEN1
+   (fs [pmatch_all_def,pat_bindings_def,pmatch_success]
+    \\ fs [CaseEq"match_result"] \\ rw []
+    \\ disj1_tac \\ match_mp_tac pmatch_all_No_match
+    \\ rpt (goal_assum (first_assum o mp_then Any mp_tac)) \\ fs [])
+  \\ rpt strip_tac \\ fs []
+  \\ fs [pmatch_all_def]
+  \\ fs [good_cons_env_def,lookup_cons_def]
+  \\ fs [EVERY_MEM]
+  \\ res_tac \\ fs [pat_bindings_def]
+  \\ fs [pmatch_def]
+  \\ fs [same_ctor_def]
+  \\ Cases_on `HD full_ps`
+  \\ PairCases_on `r`
+  \\ fs []
+  \\ res_tac  \\ fs [] \\ fs []
+  \\ fs [CaseEq"match_result",bool_case_eq]
+  \\ metis_tac [same_type_def, same_type_trans]
 QED
 
 val write_list_def = Define `
@@ -2618,7 +2672,7 @@ Proof
     \\ disch_then (qspec_then `ck1'` assume_tac) \\ fs []
     \\ fs [pair_case_eq,result_case_eq,PULL_EXISTS]
     \\ asm_exists_tac \\ fs [Mat_cases_def]
-    \\ fs [evaluate_def,pmatch_def,pat_bindings_def]
+    \\ fs [evaluate_def,pmatch_def,pmatch_all_def,pat_bindings_def]
     \\ fs [pmatch_list_MAP_Pvar,GSYM write_list_thm]
     \\ fs [state_component_equality])
   \\ fs [Eval_def,EXISTS_MEM,EXISTS_PROD,eval_rel_def]
@@ -2635,15 +2689,23 @@ Proof
   \\ disch_then (qspec_then `ck1'` assume_tac) \\ fs []
   \\ fs [pair_case_eq,result_case_eq,PULL_EXISTS]
   \\ asm_exists_tac \\ fs [Mat_cases_def]
-  \\ drule (evaluate_match_MAP |> INST_TYPE [``:'ffi``|->``:unit``])
+  \\ drule (pmatch_all_Match |> INST_TYPE [``:'ffi``|->``:unit``])
   \\ qpat_x_assum `MEM _ y` (assume_tac o REWRITE_RULE [MEM_SPLIT])
   \\ fs [] \\ fs [ALL_DISTINCT_APPEND]
   \\ disch_then drule
   \\ `set l1 ⊆ set l1 ∪ {(name,vars,exp',t)} ∪ set l2` by fs [SUBSET_DEF,IN_UNION]
   \\ disch_then drule \\ fs []
+  \\ `set l2 ⊆ set l1 ∪ {(name,vars,exp',t)} ∪ set l2` by fs [SUBSET_DEF,IN_UNION]
+  \\ disch_then drule \\ fs []
   \\ simp_tac std_ss [GSYM APPEND_ASSOC]
+  \\ rewrite_tac [APPEND]
+  \\ disch_then drule \\ fs []
+  \\ disch_then (qspecl_then [`refs++refs'`,`exp'`,`name`,`t`] mp_tac)
+  \\ impl_tac THEN1
+   (fs [good_cons_env_def,same_ctor_def,lookup_cons_def]
+    \\ Cases_on `t` \\ fs [same_type_def])
   \\ disch_then (fn th => rewrite_tac [th]) \\ fs []
-  \\ fs [evaluate_def,pmatch_def,pat_bindings_def]
+  \\ fs [evaluate_def,pmatch_def,pmatch_all_def,pat_bindings_def]
   \\ fs [good_cons_env_def,lookup_cons_def]
   \\ `same_type t t /\ same_ctor t t` by (Cases_on `t` \\ EVAL_TAC) \\ fs []
   \\ fs [pmatch_list_MAP_Pvar,GSYM write_list_thm]
@@ -2714,8 +2776,6 @@ Proof
 QED
 
 (* terms used by the Lib file *)
-
-
 
 val translator_terms = save_thm("translator_terms",
   pack_list (pack_pair pack_string pack_term)

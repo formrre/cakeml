@@ -16,11 +16,8 @@ val write_def = ml_progTheory.write_def;
 val EvalPatRel_def = Define`
   EvalPatRel env a p pat ⇔
     ∀x av. a x av ⇒ ∀refs.
-      evaluate_match (empty_state with refs := refs) env av
-        [(p,Con NONE [])] ARB =
-        (empty_state with refs := refs,
-         if ∃vars. pat vars = x
-         then Rval([Conv NONE []]) else Rerr(Rraise ARB))`
+      ?y. pmatch env.c refs p av [] =
+          if ∃vars. pat vars = x then Match y else No_match`
 
 (*
   This is very similar to pmatch_list (see theorems proving connection below).
@@ -166,13 +163,46 @@ Proof
   metis_tac []
 QED
 
+Definition pmatch_no_type_error_def:
+  pmatch_no_type_error envC a p <=>
+    ALL_DISTINCT (pat_bindings p []) /\
+    !x v refs.
+       a x v ==> pmatch envC refs p v [] <> Match_type_error
+End
+
+Definition pmatch_all_no_type_error_def:
+  pmatch_all_no_type_error envC a [] = T /\
+  pmatch_all_no_type_error envC a ((p,e)::rows) =
+    (pmatch_no_type_error envC a p /\
+     pmatch_all_no_type_error envC a rows)
+End
+
 Theorem Eval_PMATCH_NIL:
-   !b x xv a.
+   !(b:'b -> v -> bool) x xv (a:'a -> v -> bool).
       Eval env x (a xv) ==>
-      CONTAINER F ==>
-      Eval env (Mat x []) (b (PMATCH xv []))
+      pmatch_all_no_type_error env.c a ([]:(pat # exp) list) /\
+      (CONTAINER F ==>
+       Eval env (Mat x []) (b (PMATCH xv [])))
 Proof
-  rw[CONTAINER_def]
+  rw[CONTAINER_def,pmatch_all_no_type_error_def]
+QED
+
+Theorem pmatch_all_no_type_error_IMP:
+  !ys. pmatch_all_no_type_error envC a ys /\ a x v ==>
+       pmatch_all envC refs ys v <> Match_type_error
+Proof
+  Induct \\ fs [pmatch_all_def,FORALL_PROD,pmatch_all_no_type_error_def]
+  \\ rpt strip_tac
+  \\ fs [pmatch_no_type_error_def]
+  \\ res_tac
+  \\ fs [CaseEq"match_result",CaseEq"bool"] \\ fs []
+QED
+
+Theorem pmatch_all_no_type_error_CONS_IMP:
+  !y ys. pmatch_all_no_type_error envC a (y::ys) ==>
+         pmatch_all_no_type_error envC a ys
+Proof
+  fs [pmatch_all_no_type_error_def,FORALL_PROD]
 QED
 
 Theorem Eval_PMATCH:
@@ -185,13 +215,21 @@ Theorem Eval_PMATCH:
       (∀env2 vars.
         EvalPatBind env a p pat vars env2 ∧ p2 vars ⇒
         Eval env2 e (b (res vars))) ⇒
-      (∀vars. CONTAINER (PMATCH_ROW_COND pat (K T) xv vars) ⇒ p2 vars) ∧
-      ((∀vars. ¬CONTAINER (PMATCH_ROW_COND pat (K T) xv vars)) ⇒ p1 xv) ⇒
-      Eval env (Mat x ((p,e)::ys)) (b (PMATCH xv ((PMATCH_ROW pat (K T) res)::yrs)))
+      pmatch_all_no_type_error env.c a ys ⇒
+      pmatch_all_no_type_error env.c a ((p,e)::ys) /\
+      ((∀vars. CONTAINER (PMATCH_ROW_COND pat (K T) xv vars) ⇒ p2 vars) ∧
+       ((∀vars. ¬CONTAINER (PMATCH_ROW_COND pat (K T) xv vars)) ⇒ p1 xv) ⇒
+       Eval env (Mat x ((p,e)::ys)) (b (PMATCH xv ((PMATCH_ROW pat (K T) res)::yrs))))
 Proof
   rw[Eval_def,CONTAINER_def]
   \\ rw[evaluate_def,PULL_EXISTS] \\ fs[]
   \\ first_x_assum(qspec_then`refs`strip_assume_tac)
+  THEN1
+   (fs [pmatch_all_no_type_error_def,pmatch_no_type_error_def]
+    \\ fs[EvalPatRel_def] \\ rw [] \\ res_tac
+    \\ rename [`pmatch env.c refs2`]
+    \\ pop_assum (qspec_then `refs2` strip_assume_tac)
+    \\ simp [CaseEq"bool"])
   \\ reverse (Cases_on`∃vars. PMATCH_ROW_COND pat (K T) xv vars` >> fs[])
   THEN1
    (first_x_assum(qspec_then`refs`strip_assume_tac)
@@ -202,6 +240,7 @@ Proof
     \\ fs [eval_rel_def,PULL_EXISTS]
     \\ qpat_x_assum `_ env [x] = _` assume_tac
     \\ fs [evaluate_def,pair_case_eq,result_case_eq] \\ rveq \\ fs []
+    \\ fs [pmatch_all_def]
     \\ drule evaluate_add_to_clock \\ fs []
     \\ disch_then (qspec_then `ck1'` assume_tac)
     \\ asm_exists_tac \\ fs []
@@ -209,18 +248,22 @@ Proof
     \\ drule evaluate_add_to_clock \\ fs []
     \\ disch_then (qspec_then `ck1` assume_tac)
     \\ rfs [] \\ rveq \\ fs [] \\ rfs []
-    \\ drule evaluate_match_add_to_clock \\ fs []
-    \\ fs [state_component_equality]
-    \\ simp[PMATCH_def,PMATCH_ROW_def])
+    \\ simp[PMATCH_def,PMATCH_ROW_def]
+    \\ goal_assum (first_assum o mp_then Any mp_tac)
+    \\ fs [state_component_equality,empty_state_def]
+    \\ qpat_x_assum `_ = _.refs` (assume_tac o GSYM)
+    \\ fs [CaseEq"match_result",pair_case_eq]
+    \\ qpat_x_assum `_ [e'] = _` assume_tac
+    \\ drule evaluate_add_to_clock \\ fs [])
   \\ drule (GEN_ALL pmatch_PMATCH_ROW_COND_Match)
   \\ rpt (disch_then drule) \\ strip_tac
   \\ first_x_assum(qspec_then`refs++refs'`strip_assume_tac) \\ fs[]
-  \\ qpat_x_assum`p1 xv ⇒ $! _`kall_tac
   \\ fs[EvalPatRel_def]
   \\ first_x_assum(qspec_then`vars`mp_tac) \\ simp[] \\ strip_tac
   \\ first_x_assum(fn th => first_assum(strip_assume_tac o MATCH_MP th))
   \\ first_x_assum(qspec_then`refs++refs'`mp_tac)
   \\ fs[PMATCH_ROW_COND_def] \\ rveq
+  \\ once_rewrite_tac [EQ_SYM_EQ] \\ fs [CaseEq"bool"]
   \\ `EvalPatBind env a p pat vars (env with v := nsAppend (alist_to_ns env2) env.v)`
     by (
       simp[EvalPatBind_def]
@@ -231,7 +274,7 @@ Proof
   \\ disch_then(qspec_then`refs++refs'`strip_assume_tac)
   \\ full_simp_tac std_ss [GSYM APPEND_ASSOC]
   \\ rpt strip_tac \\ fs [eval_rel_def,PULL_EXISTS,evaluate_def]
-  \\ rfs [pair_case_eq,result_case_eq,PULL_EXISTS]
+  \\ rfs [pair_case_eq,result_case_eq,PULL_EXISTS,pmatch_all_def]
   \\ fs [EVAL ``do_con_check env.c NONE 0``]
   \\ fs [EVAL ``build_conv env.c NONE []``,bool_case_eq]
   \\ `vars' = vars` by (res_tac \\ fs []) \\ rveq \\ fs []
@@ -239,8 +282,13 @@ Proof
   \\ drule evaluate_add_to_clock \\ fs []
   \\ disch_then (qspec_then `ck1'` assume_tac)
   \\ asm_exists_tac \\ fs []
+  \\ Cases_on `pmatch_all env.c (refs ++ refs') ys res' = Match_type_error`
+  THEN1 (fs [] \\ imp_res_tac pmatch_all_no_type_error_IMP \\ fs [])
+  \\ fs [CaseEq"match_result",pair_case_eq,PULL_EXISTS]
+  \\ simp[PMATCH_def,PMATCH_ROW_def,PMATCH_ROW_COND_def]
   \\ qpat_x_assum `_ [e] = _` assume_tac
   \\ drule evaluate_add_to_clock \\ fs []
+  \\ Cases_on `pmatch_all env.c (refs ++ refs') ys res'` \\ fs []
   \\ fs [state_component_equality]
   \\ simp[PMATCH_def,PMATCH_ROW_def,PMATCH_ROW_COND_def]
   \\ qsuff_tac `(some x. pat x = pat vars) = SOME vars` \\ simp []
