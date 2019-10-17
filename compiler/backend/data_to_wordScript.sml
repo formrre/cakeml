@@ -2527,7 +2527,7 @@ val ByteCopyNew_code_def = Define `
           ] :'a wordLang$prog`;
 
 (* TODO: does init but is immutable for now *)
-(* 2-length;4-initial value *)
+(* 2-length *)
 val RefByteNoInit_code_def = Define `
   RefByteNoInit_code c =
       let limit = MIN (2 ** c.len_size) (dimword (:'a) DIV 16) in
@@ -2537,7 +2537,7 @@ val RefByteNoInit_code_def = Define `
         list_Seq
           [BignumHalt 2;
            Assign 1 x;
-           AllocVar c limit (fromList [();()]);
+           AllocVar c limit (fromList [()]);
            (* compute length *)
            Assign 5 (Shift Lsr h (shift (:'a)));
            Assign 7 (Shift Lsl (Var 5) 2);
@@ -2551,8 +2551,6 @@ val RefByteNoInit_code_def = Define `
                (shift_length c − shift (:'a)); Const (1w:'a word)]);
            (* compute header *)
            Assign 5 (Op Or [y; Const 7w]);
-           (* compute repeated byte *)
-           MakeBytes 4;
            (* store header *)
            Store (Var 9) 5;
            (* write last word of byte array *)
@@ -2560,12 +2558,8 @@ val RefByteNoInit_code_def = Define `
                               Const (bytes_in_word - 1w)]);
            Assign 13 (Const 0w);
            Store (Var 1) 13;
-           WriteLastBytes 1 4 11;
-           Assign 7 (Op Sub [Var 7; Const 4w]);
-           (* write rest of byte array *)
-           Call NONE (SOME Replicate_location)
-             (* ret_loc, addr, v, n, ret_val *)
-             [0;9;4;7;3] NONE]:'a wordLang$prog`;
+           WriteLastBytes 1 13 11;
+           Return 0 3]:'a wordLang$prog`;
 
 (* initial value unused;6 replace by 0w *)
 (* val RefByteNoInit_code_def = Define `
