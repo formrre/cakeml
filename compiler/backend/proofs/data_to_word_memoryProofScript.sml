@@ -7964,6 +7964,28 @@ Proof
   \\ fs [AC STAR_ASSOC STAR_COMM] \\ fs [STAR_ASSOC]
 QED
 
+Theorem memory_rel_RefByte_alt_noinit:
+   memory_rel c be ts refs sp st m dm vars ∧
+   new ∉ FDOM refs ∧ byte_len (:'a) n < sp ∧
+   byte_len (:'a) n < 2 ** (dimindex (:α) − 4) /\
+   byte_len (:'a) n < 2 ** c.len_size /\
+   good_dimindex (:α) ⇒
+   ∃free curr m1 arr ws.
+     (LENGTH ws = byte_len (:'a) n ∧
+     LENGTH arr = n) ==>
+     FLOOKUP st NextFree = SOME (Word free) ∧
+     FLOOKUP st CurrHeap = SOME (Word curr) ∧
+     (let w' = bytes_in_word * (n2w (byte_len (:'a) n + 1)):'a word in
+      let nb = (n MOD (dimindex(:'a) DIV 8)) in
+      let ws = LUPDATE (Word (last_bytes nb 0w 0w 0w be)) (byte_len (:'a) n - 1) ws in
+        store_list free (Word (make_byte_header c fl n)::ws) m dm = SOME m1 ∧
+        memory_rel c be ts (refs |+ (new,ByteArray fl arr))
+          (sp − (byte_len (:'a) n + 1)) (st |+ (NextFree,Word (free + w'))) m1 dm
+          ((RefPtr new,make_ptr c (free − curr) 0w (byte_len (:'a) n))::vars))
+Proof
+   cheat
+QED
+
 Theorem memory_rel_tail:
    memory_rel c be ts refs sp st m dm (v::vars) ==>
     memory_rel c be ts refs sp st m dm vars

@@ -3026,6 +3026,12 @@ Proof
     \\ fs [ADD_DIV_EQ,DIV_DIV_DIV_MULT])
   \\ fs [wordSemTheory.set_var_def,lookup_insert]
   (* fails here *)
+  (* following are experimental *)
+  \\ once_rewrite_tac [list_Seq_def]
+  \\ fs [wordSemTheory.evaluate_def,word_exp_rw,wordSemTheory.set_var_def,
+         wordSemTheory.set_store_def,wordSemTheory.get_var_def,lookup_insert,
+         wordSemTheory.mem_store_def,store_list_def]
+  \\ simp[wordSemTheory.get_var_def,wordSemTheory]
   \\ cheat
   (*
   \\ rpt_drule0 memory_rel_RefByte_alt
