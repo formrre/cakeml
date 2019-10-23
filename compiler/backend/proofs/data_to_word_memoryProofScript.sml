@@ -8377,8 +8377,54 @@ Proof
  )
  \\ simp[]
  \\ Q.MATCH_GOALSUB_ABBREV_TAC`store_list A _ M DM`
- (* TODO: RefByteNoInit memory_rel, needs application of store_list_thm *)
- \\ cheat
+ \\ strip_tac \\ drule store_list_thm \\ pop_assum mp_tac
+ \\ simp[Abbr`Y`]
+ \\ rpt strip_tac \\ simp[]
+ (* TODO this is experimental and might not work *)
+ \\ qexists_tac`m1` \\ simp[]
+ \\ pop_assum mp_tac \\ pop_assum(fn a => SUBST_TAC[GSYM a])
+ \\ rw[]
+ \\ simp[store_list_def]
+ \\ reverse(TOP_CASE_TAC \\ fs[])
+ >- (qexists_tac`REPLICATE (byte_len (:'a) n) ARB`
+     \\ simp[])
+ \\ Q.PAT_ABBREV_TAC`MA = M⦇A ↦ Word (make_byte_header c fl n)⦈`
+ \\ Q.PAT_ABBREV_TAC`LA = MAP Word _`
+ \\ `?ws. LA = LUPDATE (Word 0w) (byte_len (:'a) n - 1) ws /\
+          LENGTH ws = byte_len (:'a) n` by (
+    UNABBREV_ALL_TAC
+    \\ Q.REFINE_EXISTS_TAC`MAP Word ws`
+    \\ simp[GSYM LUPDATE_MAP]
+    \\ simp[MAP_Word_11]
+    \\ fs[] \\ clean_tac \\ fs[]
+    \\ Q.PAT_ABBREV_TAC `X = write_bytes _ _ _`
+    \\ qexists_tac`X`
+    \\ simp[]
+    \\ reverse(rw[LIST_EQ_REWRITE])
+    >-(simp[Abbr`X`]
+    )
+    \\ simp[EL_LUPDATE]
+    \\ TOP_CASE_TAC \\ simp[]
+    \\ clean_tac
+    \\ fs[]
+    \\ pop_assum mp_tac
+    \\ simp[Abbr`X`]
+    \\ Q.PAT_ABBREV_TAC`X = _ ++ _`
+    \\ `byte_len (:'a) n = byte_len (:'a) (LENGTH X)` by (
+        simp[Abbr`X`]
+        \\ MK_COMB_TAC \\ simp[]
+        \\ Q.MATCH_ABBREV_TAC`X=Y` \\ `Y=X` suffices_by simp[]
+        \\ simp[Abbr`X`,Abbr`Y`]
+        \\ match_mp_tac SUB_ADD
+        \\ match_mp_tac MOD_LESS_EQ
+        \\ fs[good_dimindex_def]
+    )
+    \\ simp[]
+    \\ Q.UNDISCH_TAC`good_dimindex (:'a)`
+    \\ cheat
+ )
+ \\ simp[]
+ \\ asm_exists_tac \\ simp[]
 QED
 
 
